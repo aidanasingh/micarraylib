@@ -30,7 +30,9 @@ def a2b(N, audio_numpy, capsule_coords):
     Y = np.linalg.pinv(SH)
     return np.dot(Y, audio_numpy)
 
-def array2sh_process(N, audio_numpy, capsule_coords, fs):
+def array2sh_process(
+    N, audio_numpy, capsule_coords, fs
+):
     """
     Encodes ambisonics B-format signal
     from raw recorded microphone signals
@@ -73,7 +75,9 @@ def array2sh_process(N, audio_numpy, capsule_coords, fs):
     audio_istft = librosa.istft(sh_spectrum,hop_length=128,win_length=128,window='boxcar')
     return audio_istft
 
-def calculate_sht_matrix(r,R,HYBRID_BANDS,order,nSH,fs,coords_numpy,Q):
+def calculate_sht_matrix(
+    r,R,HYBRID_BANDS,order,nSH,fs,coords_numpy,Q
+):
     """
     calculates the matrix by which the time-frequency-domain 
     sensor signals will be multiplied with to get spherical 
@@ -102,27 +106,16 @@ def calculate_sht_matrix(r,R,HYBRID_BANDS,order,nSH,fs,coords_numpy,Q):
     fv = np.fft.fftfreq((HYBRID_BANDS-1)*2,1.0/fs)
     freqVector = fv[:HYBRID_BANDS]
     freqVector[-1] = freqVector[-1]*(-1)
-    #print(freqVector)
     c = scipy.constants.speed_of_sound #speed of sound in air
     for band in range(HYBRID_BANDS):
         kr[band] = 2*np.pi*freqVector[band]*r/c
         #kR[band] = 2*np.pi*freqVector[band]*R/c
 
-    # plt.plot(freqVector)
-    # plt.show()
-
     #---------------------- CALCULATE Y_e ---------------------- ("Spherical harmonic weights for each sensor direction")
     SH = sph.sh_matrix(order, coords_numpy[:, 1], coords_numpy[:, 0], "real")
     #Y_mic = (SH.T/(np.sqrt(1/(4*np.pi)))) 
     pinv_Y_mic = np.linalg.pinv(SH/(np.sqrt(1/(4*np.pi))))
-
-    #print(pinv_Y_mic)
-    
     pinv_Y_mic_cmplx = pinv_Y_mic + 0j
-
-    #print(pinv_Y_mic_cmplx)
-    
-
 
     #----------- SWITCH CASES FOR ARRAY CONSTRUCTION -----------
     #if: filter type is soft limiter or Tikhonov
@@ -130,17 +123,13 @@ def calculate_sht_matrix(r,R,HYBRID_BANDS,order,nSH,fs,coords_numpy,Q):
     #BEGIN case WEIGHT_RIGID_DIPOLE
     if(r == R):
         bN = np.array(calculate_modal_coefficients(order, kr, HYBRID_BANDS, None, None, freqVector))
-    
-    #print(bN)
     #else: #Case not for Eigenmike
     #END case WEIGHT_RIGID_DIPOLE
     #END case ARRAY_SPHERICAL
        
-
-
     #------ CREATE W_l FROM THEORETICAL MODAL COEFFICENTS ------
     bN_norm = bN/(4*np.pi)
-    bN_reg_inv = 1/(bN_norm+1e-24)#"direct inverse" method, s
+    bN_reg_inv = 1/(bN_norm+1e-24)#"direct inverse" method, see paper
     regPar = 15 #(15 was printed in eigenmike encoding in SAF)
 
     #---------------- REGULARIZED INVERSE METHODS ----------------  
@@ -153,21 +142,20 @@ def calculate_sht_matrix(r,R,HYBRID_BANDS,order,nSH,fs,coords_numpy,Q):
             bN_inv[band][n] = np.conj(bN_reg_inv[band*(order+1)+n]) / np.abs(bN_reg_inv[band*(order+1)+n])**2 + beta**2 + 0j
     #endif: filterType == FILTER_TIKHONOV
 
-
-
     #---------- COMPUTE ENCODING MATRIX: W = W_l x Y_e ---------- 
     bN_inv_R = array2sh_replicate_order(bN_inv, order, HYBRID_BANDS)
     diag_bN_inv_R = np.zeros((nSH,nSH), dtype=np.complex128)
     W = np.zeros((HYBRID_BANDS, nSH, Q), dtype = 'complex128') #nSH was MAX_NUM_SH_SIGNALS, Q was MAX_NUM_SENSORS
-
     for band in range(HYBRID_BANDS):
         for i in range(nSH):
-            diag_bN_inv_R[i][i] = bN_inv_R[band][i] #in C did some weird stuff by splitting and recombining real and imaginary parts
+            diag_bN_inv_R[i][i] = bN_inv_R[band][i] 
         W[band,:,:] = np.dot(diag_bN_inv_R,pinv_Y_mic_cmplx)
         
     return W
 
-def array2sh_replicate_order(bN_inv, order, HYBRID_BANDS):
+def array2sh_replicate_order(
+    bN_inv, order, HYBRID_BANDS
+):
     '''
     "Takes the bNs computed up to N+1, and replicates them to be of length
     (N+1)^2 (replicating the 1st order bNs 3 times, 2nd -> 5 times etc.)"
@@ -186,7 +174,6 @@ def array2sh_replicate_order(bN_inv, order, HYBRID_BANDS):
     o= np.zeros(MAX_SH_ORDER + 2 , dtype='int64')
     o[0:order+2] = np.arange(order+2)
     o=o*o
-    
     for band in range(HYBRID_BANDS):
         for n in range(order+1):
             for i in range(o[n], o[n+1]):
@@ -194,7 +181,9 @@ def array2sh_replicate_order(bN_inv, order, HYBRID_BANDS):
         
     return bN_inv_R
 
-def calculate_modal_coefficients(order, kr, nBands, arrayType, dirCoeff,fv): 
+def calculate_modal_coefficients(
+    order, kr, nBands, arrayType, dirCoeff,fv
+): 
     """
     computes "theoretical modal coefficients" for ambisonics
     encoding. These coefficients "take into account whether 
@@ -223,20 +212,7 @@ def calculate_modal_coefficients(order, kr, nBands, arrayType, dirCoeff,fv):
     jnprime = bessel_functions(order, kr, True)
     hn2 = hankel2_functions(order, kr, False)
     hn2prime = hankel2_functions(order, kr, True)
-    maxN=1000000000
-
-    # hn2_imag = jnprime
-    # #print(hn2_imag[::5])
-    # #plt.plot(fv/(2*np.pi),jn[::5])
-    # plt.plot(fv,hn2_imag[::5])
-    # plt.plot(fv,hn2_imag[1::5])
-    # plt.plot(fv,hn2_imag[2::5])
-    # plt.plot(fv,hn2_imag[3::5])
-    # plt.plot(fv,hn2_imag[4::5])
-    # plt.title("jnprime's plotted against frequency vector: My implementation")
-    # #plt.ylim([-1,1])
-    # plt.show()
-    
+    maxN=1000000000    
     #Below: SAF bessel functions return a maxN_tmp
     #if maxN_tmp<maxN: maxN = maxN_tmp
     #if maxN_tmp<maxN: maxN = maxN_tmp  #maxN is "the minimum highest order that was computed for all values in kr"
@@ -294,7 +270,7 @@ def bessel_functions(
     Returns:
         np.array: Desired bessel values
     """
-
+    
     arr = [0.]*(order+1)
     for i in range(order+1):
         arr[i] = scipy.special.spherical_jn(i, kr, is_derivatives).tolist()
